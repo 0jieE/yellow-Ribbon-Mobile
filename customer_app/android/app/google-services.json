@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "673874037429",
+    "project_id": "yellow-ribbon-delivery",
+    "storage_bucket": "yellow-ribbon-delivery.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:673874037429:android:79f740ad03f2cc4687ccfc",
+        "android_client_info": {
+          "package_name": "com.example.customer_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWJhiqQ5l13MvkZqgiMWMz7BlKY4pwInk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
