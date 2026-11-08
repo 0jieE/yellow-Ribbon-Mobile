@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../theme.dart';
+import '../widgets/app_update.dart';
 import '../widgets/section_card.dart';
 import 'store_settings_screen.dart';
 
@@ -186,6 +187,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 14),
+
+                const SectionCard(
+                  title: "App",
+                  icon: Icons.phone_android,
+                  child: AppUpdateTile(),
                 ),
 
                 const SizedBox(height: 14),

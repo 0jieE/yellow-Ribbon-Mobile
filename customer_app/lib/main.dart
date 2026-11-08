@@ -12,6 +12,7 @@ import 'home_router.dart';
 import 'services/api_client.dart';
 import 'services/pending_payment.dart';
 import 'services/push_service.dart';
+import 'widgets/app_update.dart';
 
 /// Lets the API client and the push/deep-link handlers reach the navigator
 /// from outside the widget tree.
@@ -41,6 +42,9 @@ Future<void> main() async {
   await PushService.instance.initialize();
 
   runApp(const MyApp());
+
+  // Quietly looks for a newer build once the first frame is up.
+  UpdatePrompter.instance.start(navigatorKey);
 }
 
 /// Pushes an order's detail screen from outside the widget tree.

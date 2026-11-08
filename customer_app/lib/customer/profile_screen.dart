@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
+import '../widgets/app_update.dart';
 import 'edit_profile_screen.dart';
 
 const _amber = Color(0xFFFFC107);
@@ -244,6 +245,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               value: user.username,
             ),
           ),
+
+          const SizedBox(height: 14),
+
+          const _Section(title: "App", child: AppUpdateTile()),
 
           const SizedBox(height: 22),
 

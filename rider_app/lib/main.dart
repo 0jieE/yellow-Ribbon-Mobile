@@ -16,6 +16,7 @@ import 'services/delivery_service.dart';
 import 'services/location_pinger.dart';
 import 'services/osrm_service.dart';
 import 'services/push_service.dart';
+import 'widgets/app_update.dart';
 
 /// Lets the API client and the push handlers reach the navigator from
 /// outside the widget tree.
@@ -43,6 +44,9 @@ void main() async {
   await PushService.instance.initialize();
 
   runApp(const RiderApp());
+
+  // Quietly looks for a newer build once the first frame is up.
+  UpdatePrompter.instance.start(navigatorKey);
 }
 
 /// Opens the delivery a push refers to.

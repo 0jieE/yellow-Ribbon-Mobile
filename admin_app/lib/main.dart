@@ -14,6 +14,7 @@ import 'services/api_client.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
 import 'theme.dart';
+import 'widgets/app_update.dart';
 
 /// Lets the API client return to the login screen from anywhere when the
 /// refresh token stops working, without every screen having to handle it.
@@ -38,6 +39,9 @@ void main() async {
   await PushService.instance.initialize();
 
   runApp(const AdminApp());
+
+  // Quietly looks for a newer build once the first frame is up.
+  UpdatePrompter.instance.start(navigatorKey);
 }
 
 /// Opens the order queue for a push, and the order itself when the payload

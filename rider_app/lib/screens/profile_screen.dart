@@ -8,6 +8,7 @@ import '../services/location_pinger.dart';
 import '../services/osrm_service.dart';
 import '../services/push_service.dart';
 import '../services/rider_service.dart';
+import '../widgets/app_update.dart';
 
 const _amber = Color(0xFFFFC107);
 const _ink = Color(0xFF1F1F1F);
@@ -279,6 +280,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               value: user.username,
             ),
           ),
+
+          const SizedBox(height: 14),
+
+          const _Section(title: "App", child: AppUpdateTile()),
 
           const SizedBox(height: 22),
 

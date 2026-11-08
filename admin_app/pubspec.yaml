@@ -48,6 +48,8 @@ dependencies:
   geolocator: ^13.0.2
   pdf: ^3.13.1
   printing: ^5.15.1
+  package_info_plus: ^9.0.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
