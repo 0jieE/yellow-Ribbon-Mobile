@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "270123662015",
+    "project_id": "delivery-ab221",
+    "storage_bucket": "delivery-ab221.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270123662015:android:6e062d20b022578939640a",
+        "android_client_info": {
+          "package_name": "com.yellowribbon.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270123662015:android:a64bb3f722b11aea39640a",
+        "android_client_info": {
+          "package_name": "com.yellowribbon.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270123662015:android:42c1d8485b45a2df39640a",
+        "android_client_info": {
+          "package_name": "com.yellowribbon.rider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

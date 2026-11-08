@@ -17,17 +17,29 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      return web;
+      throw UnsupportedError(
+        'DefaultFirebaseOptions have not been configured for web - '
+        'you can reconfigure this by running the FlutterFire CLI again.',
+      );
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        return ios;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for ios - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.macOS:
-        return macos;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for macos - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.windows:
-        return windows;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for windows - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -40,47 +52,11 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBPS80dp8RXGtAelpJz68qPwV3CAX43XQE',
-    appId: '1:673874037429:web:0a17173dfa92152787ccfc',
-    messagingSenderId: '673874037429',
-    projectId: 'yellow-ribbon-delivery',
-    authDomain: 'yellow-ribbon-delivery.firebaseapp.com',
-    storageBucket: 'yellow-ribbon-delivery.firebasestorage.app',
-  );
-
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBWJhiqQ5l13MvkZqgiMWMz7BlKY4pwInk',
-    appId: '1:673874037429:android:db7d1d41d1980aea87ccfc',
-    messagingSenderId: '673874037429',
-    projectId: 'yellow-ribbon-delivery',
-    storageBucket: 'yellow-ribbon-delivery.firebasestorage.app',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyC7kYOvXqJtPankZrVXqKAviu6PYkl58V4',
-    appId: '1:673874037429:ios:7e57232f82bda9b687ccfc',
-    messagingSenderId: '673874037429',
-    projectId: 'yellow-ribbon-delivery',
-    storageBucket: 'yellow-ribbon-delivery.firebasestorage.app',
-    iosBundleId: 'com.example.adminApp',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyC7kYOvXqJtPankZrVXqKAviu6PYkl58V4',
-    appId: '1:673874037429:ios:7e57232f82bda9b687ccfc',
-    messagingSenderId: '673874037429',
-    projectId: 'yellow-ribbon-delivery',
-    storageBucket: 'yellow-ribbon-delivery.firebasestorage.app',
-    iosBundleId: 'com.example.adminApp',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBPS80dp8RXGtAelpJz68qPwV3CAX43XQE',
-    appId: '1:673874037429:web:55821d031603e01787ccfc',
-    messagingSenderId: '673874037429',
-    projectId: 'yellow-ribbon-delivery',
-    authDomain: 'yellow-ribbon-delivery.firebaseapp.com',
-    storageBucket: 'yellow-ribbon-delivery.firebasestorage.app',
+    apiKey: 'AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A',
+    appId: '1:270123662015:android:6e062d20b022578939640a',
+    messagingSenderId: '270123662015',
+    projectId: 'delivery-ab221',
+    storageBucket: 'delivery-ab221.firebasestorage.app',
   );
 }

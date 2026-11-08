@@ -15,7 +15,7 @@ class CartController {
     }
   }
 
-  static void removeItem(String id) {
+  static void removeItem(int id) {
     _cart.removeWhere((item) => item.id == id);
   }
 

@@ -1,62 +1,102 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import 'dart:async';
+
 import 'customer_home.dart';
 import 'login.dart';
+import 'models/user_model.dart';
+import 'services/auth_service.dart';
+import 'services/push_service.dart';
 
-class HomeRouter extends StatelessWidget {
+/// Decides the landing screen from the stored session.
+///
+/// A JWT in secure storage means the customer is still logged in, so a cold
+/// start goes straight to the menu. The cached `user` object carries the role
+/// flags the login response returned, which is what picks the destination —
+/// no network round trip needed before the first frame.
+class HomeRouter extends StatefulWidget {
   const HomeRouter({super.key});
 
-  Future<String?> getRole(String uid) async {
-    final doc = await FirebaseFirestore.instance
-        .collection("users")
-        .doc(uid)
-        .get();
+  @override
+  State<HomeRouter> createState() => _HomeRouterState();
+}
 
-    if (!doc.exists) return null;
-    return doc.data()?["role"];
+class _HomeRouterState extends State<HomeRouter> {
+  final _auth = AuthService();
+  late Future<AppUser?> _session;
+
+  @override
+  void initState() {
+    super.initState();
+    _session = _resolveSession();
+  }
+
+  /// Returns the signed-in user, or null when there is no usable session.
+  Future<AppUser?> _resolveSession() async {
+    if (!await _auth.hasSession()) return null;
+
+    final user = await _auth.cachedUser();
+
+    // Register for pushes here too, not only on the login screen. The JWT
+    // survives a restart, so a returning customer never sees the login screen
+    // again — and before this, that meant their device was never registered.
+    if (user != null && user.isCustomer) {
+      unawaited(PushService.instance.registerToken(reason: 'session-restore'));
+    }
+
+    return user;
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return FutureBuilder<AppUser?>(
+      future: _session,
       builder: (context, snapshot) {
-        // 🔥 WAIT STATE (important fix)
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // ❌ NOT LOGGED IN
-        if (!snapshot.hasData || snapshot.data == null) {
+        final user = snapshot.data;
+
+        // No token, or a token with no cached profile to trust.
+        if (user == null) {
           return const LoginPage();
         }
 
-        final user = snapshot.data!;
+        if (user.isCustomer) {
+          return const CustomerHome();
+        }
 
-        return FutureBuilder<String?>(
-          future: getRole(user.uid),
-          builder: (context, roleSnap) {
-            if (roleSnap.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            final role = roleSnap.data;
-
-            if (role == "customer") {
-              return const CustomerHome();
-            }
-
-            return const Scaffold(
-              body: Center(
-                child: Text("Role not assigned"),
+        // A rider or admin token in this build: every customer endpoint would
+        // reject it, so say so plainly rather than showing an empty menu.
+        return Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "This is a ${user.role} account.\n"
+                    "Please use the ${user.role} app.",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await _auth.logout();
+                      if (!context.mounted) return;
+                      setState(() => _session = _resolveSession());
+                    },
+                    child: const Text("Log out"),
+                  ),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );

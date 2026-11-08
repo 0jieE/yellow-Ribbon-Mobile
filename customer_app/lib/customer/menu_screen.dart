@@ -1,9 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/cart_controller.dart';
 import '../models/cart_item.dart';
+import '../models/menu_item.dart';
+import '../services/api_client.dart';
+import '../services/menu_service.dart';
 import 'cart_screen.dart';
+import 'menu_item_detail_screen.dart';
+
+const _amber = Color(0xFFFFC107);
+const _ink = Color(0xFF1F1F1F);
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -13,186 +19,379 @@ class MenuScreen extends StatefulWidget {
 }
 
 class _MenuScreenState extends State<MenuScreen> {
-  Map<String, int> qty = {};
+  final _menuService = MenuService();
 
-  int getQty(String id) => qty[id] ?? 1;
+  late Future<List<MenuItem>> _menu;
 
-  void inc(String id) {
-    setState(() {
-      qty[id] = getQty(id) + 1;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _menu = _menuService.fetchMenu();
   }
 
-  void dec(String id) {
-    setState(() {
-      if (getQty(id) > 1) {
-        qty[id] = getQty(id) - 1;
-      }
-    });
+  Future<void> _reload() async {
+    final future = _menuService.fetchMenu();
+    setState(() => _menu = future);
+    // Let RefreshIndicator spin until the new list has actually landed.
+    await future.catchError((_) => <MenuItem>[]);
+  }
+
+  /// The ORDER button adds a single unit. Quantities are changed in the cart,
+  /// which is the only screen with steppers.
+  void _addToCart(MenuItem item) {
+    CartController.addItem(
+      CartItem(
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        photo: item.photo,
+      ),
+    );
+    setState(() {}); // refresh the app bar cart count
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("${item.name} added to cart"),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  Future<void> _openCart() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CartScreen()),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _openDetail(MenuItem item) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        // The row is already loaded, so no round trip is needed.
+        builder: (_) => MenuItemDetailScreen(menuId: item.id, item: item),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final cartCount = CartController.cart.fold<int>(
+      0,
+      (sum, item) => sum + item.quantity,
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F6F6),
 
       appBar: AppBar(
-        title: const Text("Welcome!"),
+        backgroundColor: _amber,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text(
+          "Yellow Ribbon Pizza",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CartScreen()),
-              ).then((_) => setState(() {}));
-            },
-          )
+            tooltip: "Cart",
+            icon: Badge(
+              isLabelVisible: cartCount > 0,
+              label: Text('$cartCount'),
+              backgroundColor: _ink,
+              child: const Icon(Icons.shopping_cart_outlined),
+            ),
+            onPressed: _openCart,
+          ),
         ],
       ),
 
-      body: StreamBuilder(
-        stream: FirebaseFirestore.instance.collection("menu").snapshots(),
+      body: FutureBuilder<List<MenuItem>>(
+        future: _menu,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data!.docs;
+          if (snapshot.hasError) {
+            return _MenuMessage(
+              message: snapshot.error is ApiException
+                  ? (snapshot.error as ApiException).message
+                  : "Could not load the menu.",
+              onRetry: _reload,
+            );
+          }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final data = docs[index].data();
-              final id = docs[index].id;
+          final items = snapshot.data ?? const <MenuItem>[];
 
-              final name = data["name"];
-              final price = (data["price"] as num).toDouble();
+          if (items.isEmpty) {
+            return _MenuMessage(
+              message: "No items are on the menu right now.",
+              onRetry: _reload,
+              isError: false,
+            );
+          }
 
-              // ✅ SAFE IMAGE (prevents 404 crash)
-              final image = data["image"] ??
-                  "https://images.unsplash.com/photo-1601924582970-9238bcb495d9";
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: GridView.builder(
+              padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 13,
+                mainAxisSpacing: 13,
+                // A fixed height is steadier than an aspect ratio here: card
+                // content varies with the description length.
+                mainAxisExtent: 280,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, index) => _MenuCard(
+                item: items[index],
+                onTap: () => _openDetail(items[index]),
+                onOrder: () => _addToCart(items[index]),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
-                    )
-                  ],
-                ),
+/// One item on the menu grid.
+///
+/// Laid out after the reference design: a dark information block beside the
+/// photo, the name across the middle, then price and an ORDER button. The
+/// reference also carries a VEG/NON-VEG tag and a discount pill; the `Menu`
+/// model has neither a category nor a discount field, so those are left out
+/// rather than faked. The dark block shows the item's description, which is
+/// the closest real equivalent to its ingredients list.
+class _MenuCard extends StatelessWidget {
+  const _MenuCard({
+    required this.item,
+    required this.onTap,
+    required this.onOrder,
+  });
 
-                child: Row(
-                  children: [
-                    // 🍕 IMAGE (SAFE)
-                    Container(
-                      width: 75,
-                      height: 75,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: NetworkImage(image),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      child: Container(), // prevents layout crash
-                    ),
+  final MenuItem item;
+  final VoidCallback onTap;
+  final VoidCallback onOrder;
 
-                    const SizedBox(width: 12),
-
-                    // DETAILS
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          const Text(
-                            "Freshly baked pizza",
-                            style: TextStyle(color: Colors.grey),
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          Text(
-                            "₱${price.toStringAsFixed(2)}",
-                            style: const TextStyle(
-                              color: Colors.deepOrange,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // QUANTITY + ADD
-                    Column(
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _amber,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(9),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // PHOTO, with the description floating over its top-left.
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
                       children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: () => dec(id),
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: item.photo == null
+                                ? const _PhotoPlaceholder()
+                                : Image.network(
+                                    item.photo!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) =>
+                                        const _PhotoPlaceholder(),
+                                  ),
+                          ),
+                        ),
+
+                        // Sized to its own content rather than stretched, so
+                        // a short description stays a small floating chip and
+                        // leaves as much of the photo visible as possible.
+                        Positioned(
+                          top: 7,
+                          left: 7,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: constraints.maxWidth * 0.64,
                             ),
-                            Text(
-                              "${getQty(id)}",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(9, 7, 9, 8),
+                              decoration: BoxDecoration(
+                                color: _ink,
+                                borderRadius: BorderRadius.circular(9),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black38,
+                                    blurRadius: 7,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "DESCRIPTION",
+                                    style: TextStyle(
+                                      color: _amber,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.9,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.description.isEmpty
+                                        ? "Freshly baked, made to order."
+                                        : item.description,
+                                    maxLines: 4,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 9.5,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
-                              onPressed: () => inc(id),
-                            ),
-                          ],
-                        ),
-
-                        SizedBox(
-                          width: 100,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              CartController.addItem(
-                                CartItem(
-                                  id: id,
-                                  name: name,
-                                  price: price,
-                                  quantity: getQty(id),
-                                ),
-                              );
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("$name added to cart"),
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
-                            },
-                            child: const Text("Add"),
                           ),
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
-          );
-        },
+              ),
+
+              const SizedBox(height: 10),
+
+              // NAME
+              Text(
+                item.name.toUpperCase(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.black,
+                  letterSpacing: 0.3,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // PRICE + ORDER
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      "₱${item.price.toStringAsFixed(2)}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 30,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _ink,
+                        foregroundColor: _amber,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      onPressed: onOrder,
+                      child: const Text("ORDER"),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fills the whole photo area when an item has no picture, or its URL fails
+/// to load. Kept light so the dark description chip still reads over it.
+class _PhotoPlaceholder extends StatelessWidget {
+  const _PhotoPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      alignment: Alignment.bottomRight,
+      padding: const EdgeInsets.all(10),
+      child: const Icon(
+        Icons.local_pizza,
+        color: Color(0xFFFFE082),
+        size: 54,
+      ),
+    );
+  }
+}
+
+class _MenuMessage extends StatelessWidget {
+  const _MenuMessage({
+    required this.message,
+    required this.onRetry,
+    this.isError = true,
+  });
+
+  final String message;
+  final Future<void> Function() onRetry;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    // Inside a scroll view so RefreshIndicator still works on an empty list.
+    return RefreshIndicator(
+      onRefresh: onRetry,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 80),
+        children: [
+          Icon(
+            isError ? Icons.cloud_off : Icons.local_pizza_outlined,
+            size: 48,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: ElevatedButton(
+              onPressed: onRetry,
+              child: const Text("Retry"),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,93 +1,104 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'customer/menu_screen.dart';
+import 'customer/orders_screen.dart';
+import 'customer/profile_screen.dart';
 
-class CustomerHome extends StatelessWidget {
-  const CustomerHome({super.key});
+const _amber = Color(0xFFFFC107);
+const _ink = Color(0xFF1F1F1F);
 
-  Future<bool> confirmExit(BuildContext context) async {
-    return await showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              title: const Text(
-                "Logout",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: const Text(
-                "Do you want to logout and return to login screen?",
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text("Cancel"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFC107),
-                    foregroundColor: Colors.black,
-                  ),
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    Navigator.pop(context, true);
-                  },
-                  child: const Text("Logout"),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
+/// The signed-in shell: Menu, Orders, Profile.
+///
+/// Each tab owns its own Scaffold and app bar, so this only supplies the
+/// navigation bar. Orders and Profile were previously unreachable.
+class CustomerHome extends StatefulWidget {
+  const CustomerHome({super.key, this.initialTab = 0});
+
+  /// Which tab to open on. Used when a notification or the payment deep link
+  /// lands the customer here rather than on the menu.
+  final int initialTab;
+
+  static const int menuTab = 0;
+  static const int ordersTab = 1;
+  static const int profileTab = 2;
+
+  @override
+  State<CustomerHome> createState() => _CustomerHomeState();
+}
+
+class _CustomerHomeState extends State<CustomerHome> {
+  late int _selectedIndex = widget.initialTab;
+
+  /// Rebuilding a tab on every switch is deliberate: the orders list and the
+  /// menu should both be current when the customer returns to them, and both
+  /// are cheap single fetches.
+  Widget get _body {
+    switch (_selectedIndex) {
+      case CustomerHome.ordersTab:
+        return const OrdersScreen();
+      case CustomerHome.profileTab:
+        return const ProfileScreen();
+      default:
+        return const MenuScreen();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    const primaryYellow = Color(0xFFFFC107);
-
-    return WillPopScope(
-      onWillPop: () async {
-        return await confirmExit(context);
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF6F6F6),
-
-        // 🟡 YELLOW APPBAR
-        appBar: AppBar(
-          backgroundColor: primaryYellow,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          centerTitle: true,
-          title: const Text(
-            "Yellow Ribbon Pizza",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F6),
+      body: _body,
+      bottomNavigationBar: NavigationBarTheme(
+        // Dark bar with an amber active item, matching the menu cards. No
+        // pill behind the selected icon — the colour change alone marks it,
+        // which keeps the bar clean against the dark background.
+        data: NavigationBarThemeData(
+          backgroundColor: _ink,
+          indicatorColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          iconTheme: WidgetStateProperty.resolveWith(
+            (states) => IconThemeData(
+              size: 25,
+              color: states.contains(WidgetState.selected)
+                  ? _amber
+                  : Colors.white60,
             ),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                final shouldLogout = await confirmExit(context);
-
-                if (shouldLogout) {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    "/",
-                    (route) => false,
-                  );
-                }
-              },
-            )
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontSize: 12,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              color: states.contains(WidgetState.selected)
+                  ? _amber
+                  : Colors.white60,
+            ),
+          ),
+        ),
+        child: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (index) =>
+              setState(() => _selectedIndex = index),
+          height: 70,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.local_pizza_outlined),
+              selectedIcon: Icon(Icons.local_pizza),
+              label: 'Menu',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Orders',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
           ],
         ),
-
-        // BODY
-        body: const MenuScreen(),
       ),
     );
   }

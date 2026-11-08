@@ -1,22 +1,42 @@
+/// A row from `GET /api/menu/`.
+///
+/// Django sends money as a decimal string ("250.00") so it never loses
+/// precision in transit; it is parsed to a double here for display only.
+/// The authoritative price is always the server's.
 class MenuItem {
-  final String id;
-  final String name;
-  final double price;
-  final String image;
-
   MenuItem({
     required this.id,
     required this.name,
+    required this.description,
     required this.price,
-    required this.image,
+    required this.photo,
+    required this.isAvailable,
   });
 
-  factory MenuItem.fromMap(String id, Map<String, dynamic> data) {
+  final int id;
+  final String name;
+  final String description;
+  final double price;
+
+  /// Absolute URL supplied by the serializer, or null when no photo is set.
+  final String? photo;
+  final bool isAvailable;
+
+  factory MenuItem.fromJson(Map<String, dynamic> json) {
     return MenuItem(
-      id: id,
-      name: data['name'],
-      price: data['price'].toDouble(),
-      image: data['image'],
+      id: json['id'] as int,
+      name: (json['name'] ?? '') as String,
+      description: (json['description'] ?? '') as String,
+      price: _toDouble(json['price']),
+      photo: (json['photo'] as String?)?.isEmpty ?? true
+          ? null
+          : json['photo'] as String,
+      isAvailable: (json['is_available'] ?? true) as bool,
     );
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value') ?? 0;
   }
 }

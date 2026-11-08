@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "673874037429",
-    "project_id": "yellow-ribbon-delivery",
-    "storage_bucket": "yellow-ribbon-delivery.firebasestorage.app"
+    "project_number": "270123662015",
+    "project_id": "delivery-ab221",
+    "storage_bucket": "delivery-ab221.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:673874037429:android:db7d1d41d1980aea87ccfc",
+        "mobilesdk_app_id": "1:270123662015:android:6e062d20b022578939640a",
         "android_client_info": {
-          "package_name": "com.example.admin_app"
+          "package_name": "com.yellowribbon.admin"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBWJhiqQ5l13MvkZqgiMWMz7BlKY4pwInk"
+          "current_key": "AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A"
         }
       ],
       "services": {
@@ -26,15 +26,34 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:673874037429:android:79f740ad03f2cc4687ccfc",
+        "mobilesdk_app_id": "1:270123662015:android:a64bb3f722b11aea39640a",
         "android_client_info": {
-          "package_name": "com.example.customer_app"
+          "package_name": "com.yellowribbon.customer"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBWJhiqQ5l13MvkZqgiMWMz7BlKY4pwInk"
+          "current_key": "AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270123662015:android:42c1d8485b45a2df39640a",
+        "android_client_info": {
+          "package_name": "com.yellowribbon.rider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6qnoZmghgfrlWV2Le_8ZV5AuSl3uUd8A"
         }
       ],
       "services": {

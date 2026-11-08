@@ -1,6 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The whole app is API-driven, and Maps needs the network too. The
+         Flutter template declares this in the debug manifest only, which
+         would leave a release build with no connectivity at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Android 13+ runtime notification permission. It already reached the
+         merged manifest via the firebase_messaging AAR, so declaring it here
+         changes nothing functionally — it makes the permission visible where
+         someone auditing this app would look for it. The runtime prompt is
+         raised by FirebaseMessaging.requestPermission(). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Location pings to POST /api/rider/location/ while a delivery is
+         active, and the rider's own position on the destination map. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
     <application
-        android:label="rider_app"
+        android:label="Ribbon Rider"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -25,11 +42,24 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Google Maps key, injected by build.gradle.kts from the gitignored
+             android/local.properties. Never hardcode it here. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- The backend's pushes name no channel. Without this, Android files
+             them under the fallback "Miscellaneous" channel at default
+             importance: no pop-up banner, easy to miss. This is the
+             high-importance channel PushService creates on start. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="yellowribbon_orders" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -40,6 +70,16 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Android 11+ package visibility: without these, url_launcher
+             cannot see Google Maps and the Navigate button silently fails. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="geo"/>
         </intent>
     </queries>
 </manifest>

@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds talk to Django over plain HTTP (http://10.0.2.2:8000 from
+         the emulator, or a LAN address on a handset). Android blocks cleartext
+         by default, so it is opted into here only — release builds keep the
+         secure default and should use the https tunnel URL. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

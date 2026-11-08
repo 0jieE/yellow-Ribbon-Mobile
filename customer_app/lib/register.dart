@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'services/api_client.dart';
+import 'services/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -11,16 +12,31 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final name = TextEditingController();
-  final email = TextEditingController();
+  // Login authenticates on username, so registration has to collect one.
+  final username = TextEditingController();
   final password = TextEditingController();
+  final passwordConfirm = TextEditingController();
   final phone = TextEditingController();
+
+  final _auth = AuthService();
 
   bool isLoading = false;
 
+  @override
+  void dispose() {
+    name.dispose();
+    username.dispose();
+    password.dispose();
+    passwordConfirm.dispose();
+    phone.dispose();
+    super.dispose();
+  }
+
   Future<void> register() async {
     if (name.text.isEmpty ||
-        email.text.isEmpty ||
+        username.text.isEmpty ||
         password.text.isEmpty ||
+        passwordConfirm.text.isEmpty ||
         phone.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please fill all fields")),
@@ -28,39 +44,47 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    if (password.text != passwordConfirm.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match")),
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
 
+    // Django stores first and last name separately; the form asks for one
+    // full name, so split on the first space and keep the rest as surname.
+    final fullName = name.text.trim();
+    final split = fullName.indexOf(' ');
+    final firstName = split == -1 ? fullName : fullName.substring(0, split);
+    final lastName = split == -1 ? '' : fullName.substring(split + 1).trim();
+
     try {
-      UserCredential user = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email: email.text.trim(),
-        password: password.text.trim(),
+      await _auth.register(
+        username: username.text.trim(),
+        password: password.text,
+        passwordConfirm: passwordConfirm.text,
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone.text.trim(),
       );
 
-      await FirebaseFirestore.instance
-          .collection("users")
-          .doc(user.user!.uid)
-          .set({
-        "uid": user.user!.uid,
-        "name": name.text.trim(),
-        "email": email.text.trim(),
-        "phone": phone.text.trim(), // ✅ ADDED
-        "role": "customer",
-        "createdAt": Timestamp.now(),
-      });
-
+      if (!mounted) return;
       setState(() => isLoading = false);
 
+      // Registration returns a profile, not a token pair, so the customer
+      // logs in on the previous screen with the username they just chose.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Registered Successfully")),
+        const SnackBar(content: Text("Account created. Please log in.")),
       );
 
       Navigator.pop(context);
-    } catch (e) {
+    } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() => isLoading = false);
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        SnackBar(content: Text(e.message)),
       );
     }
   }
@@ -132,11 +156,12 @@ class _RegisterPageState extends State<RegisterPage> {
 
                 const SizedBox(height: 12),
 
-                // EMAIL
+                // USERNAME
                 TextField(
-                  controller: email,
+                  controller: username,
+                  autocorrect: false,
                   decoration: InputDecoration(
-                    labelText: "Email",
+                    labelText: "Username",
                     filled: true,
                     fillColor: const Color(0xFFF6F6F6),
                     border: OutlineInputBorder(
@@ -171,6 +196,23 @@ class _RegisterPageState extends State<RegisterPage> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: "Password",
+                    filled: true,
+                    fillColor: const Color(0xFFF6F6F6),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // CONFIRM PASSWORD
+                TextField(
+                  controller: passwordConfirm,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: "Confirm Password",
                     filled: true,
                     fillColor: const Color(0xFFF6F6F6),
                     border: OutlineInputBorder(
