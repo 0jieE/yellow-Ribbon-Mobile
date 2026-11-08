@@ -25,8 +25,9 @@ const _pollInterval = Duration(seconds: 12);
 /// they come back to, so it should flip to paid without a manual refresh.
 const _paymentPollInterval = Duration(seconds: 4);
 
-/// The least time between two Maya status checks. Each one is a server call
-/// to Maya, so it runs on every other payment poll rather than every one.
+/// The least time between two payment status checks. Each one is a server
+/// call to the gateway, so it runs on every other payment poll rather than
+/// every one.
 const _syncEvery = Duration(seconds: 8);
 
 class OrderDetailScreen extends StatefulWidget {
@@ -132,24 +133,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  /// Reads the order — first asking Maya where an unpaid Maya order stands.
+  /// Reads the order — first asking the gateway where an unpaid online
+  /// order stands.
   ///
-  /// Maya sends no webhook, so nothing settles a Maya payment on its own:
-  /// the server checks with Maya when asked. That is throttled, since every
-  /// sync is a call to Maya, and a failure is not fatal — the order is still
-  /// shown and the next tick asks again.
+  /// Maya sends no webhook, and PayMongo's GCash webhook can be missed (the
+  /// server asleep, a failed delivery), so the server is asked to check with
+  /// the gateway directly. That is throttled, since every sync is a call to
+  /// GCash or Maya, and a failure is not fatal — the order is still shown and
+  /// the next tick asks again.
   Future<AppOrder> _fetch() async {
     var order = await _orders.fetchOrder(widget.orderId);
 
     final last = _lastSync;
     final due = last == null || DateTime.now().difference(last) >= _syncEvery;
-    if (order.awaitingPayment && order.isMaya && due) {
+    if (order.awaitingPayment && order.isOnlinePayment && due) {
       _lastSync = DateTime.now();
       try {
         final sync = await _payments.sync(order.id);
         if (sync.paid) order = await _orders.fetchOrder(widget.orderId);
       } on ApiException {
-        // Maya unreachable this time; the next poll tries again.
+        // Gateway unreachable this time; the next poll tries again.
       }
     }
     return order;

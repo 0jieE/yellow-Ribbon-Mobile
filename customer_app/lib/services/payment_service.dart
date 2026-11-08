@@ -81,9 +81,10 @@ class PaymentService {
 
   /// `POST /api/payments/sync/` — body `{"order_id": N}`.
   ///
-  /// Maya sends us no webhook, so this is how a Maya payment is confirmed:
-  /// the server asks Maya with its secret key and settles the order if Maya
-  /// says it was paid in full. Safe to call repeatedly.
+  /// Maya sends us no webhook, and a GCash webhook can be missed, so this is
+  /// how a payment gets confirmed regardless: the server asks the gateway
+  /// with its secret key and settles the order if it was paid in full. Safe
+  /// to call repeatedly.
   Future<PaymentSync> sync(int orderId) async {
     final data = await _client.post(
       '/api/payments/sync/',
