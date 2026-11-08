@@ -220,4 +220,40 @@ void main() {
     expect(dashboard.earningsToday, 60.00);
     expect(dashboard.completedToday, 2);
   });
+
+  group('pickup gating', () {
+    test('an assigned order the kitchen has not finished cannot be collected', () {
+      final delivery = Delivery.fromJson(
+        deliveryJson(orderStatus: 'preparing', nextStatuses: const []),
+      );
+      expect(delivery.pickupBlockedReason, 'The kitchen is preparing this order.');
+    });
+
+    test('the server reason wins over the local wording', () {
+      final json = deliveryJson(orderStatus: 'confirmed', nextStatuses: const [])
+        ..['waiting_for'] = 'The store is still preparing this order.';
+      expect(
+        Delivery.fromJson(json).pickupBlockedReason,
+        'The store is still preparing this order.',
+      );
+    });
+
+    test('a ready order is not blocked', () {
+      final delivery = Delivery.fromJson(deliveryJson(orderStatus: 'ready'));
+      expect(delivery.pickupBlockedReason, isNull);
+    });
+
+    test('nothing blocks a delivery that is already picked up', () {
+      final delivery = Delivery.fromJson(
+        deliveryJson(status: 'picked_up', orderStatus: 'out_for_delivery'),
+      );
+      expect(delivery.pickupBlockedReason, isNull);
+    });
+
+    test('a cancelled order is flagged and never asks to be collected', () {
+      final delivery = Delivery.fromJson(deliveryJson(orderStatus: 'cancelled'));
+      expect(delivery.orderCancelled, isTrue);
+      expect(delivery.pickupBlockedReason, isNull);
+    });
+  });
 }

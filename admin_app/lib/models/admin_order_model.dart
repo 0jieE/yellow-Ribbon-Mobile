@@ -48,6 +48,7 @@ class AssignedRider {
     required this.phone,
     required this.deliveryStatus,
     required this.riderEarnings,
+    this.failureReason,
   });
 
   final int riderId;
@@ -56,6 +57,16 @@ class AssignedRider {
   final String phone;
   final String deliveryStatus;
   final double riderEarnings;
+
+  /// What the rider gave as the reason when the delivery failed.
+  final String? failureReason;
+
+  bool get hasPickedUp =>
+      deliveryStatus == 'picked_up' ||
+      deliveryStatus == 'in_transit' ||
+      deliveryStatus == 'delivered';
+
+  bool get deliveryFailed => deliveryStatus == 'failed';
 
   /// Null when no rider has been assigned yet — which is what decides
   /// whether the Assign Rider button shows.
@@ -68,6 +79,7 @@ class AssignedRider {
       phone: (json['phone'] ?? '') as String,
       deliveryStatus: (json['delivery_status'] ?? '') as String,
       riderEarnings: _toDouble(json['rider_earnings']),
+      failureReason: json['failure_reason'] as String?,
     );
   }
 }
@@ -194,6 +206,8 @@ class AdminOrder {
     this.deliveredAt,
     this.cancelledAt,
     this.cancelReason,
+    this.serverCanAssignRider,
+    this.serverCanChangeRider,
   });
 
   final int id;
@@ -229,20 +243,38 @@ class AdminOrder {
   final DateTime? cancelledAt;
   final String? cancelReason;
 
+  /// The server's own answers, when it sends them. Null from an older
+  /// backend, in which case the same rule is applied locally.
+  final bool? serverCanAssignRider;
+  final bool? serverCanChangeRider;
+
   bool get isAssigned => rider != null;
 
   bool get isTerminal => status == 'delivered' || status == 'cancelled';
 
-  /// The server refuses assignment on these, so the button is hidden rather
-  /// than offered and then rejected. Mirrors `AssignRiderSerializer.UNASSIGNABLE`.
-  static const unassignableStatuses = {
-    'pending_payment',
-    'delivered',
-    'cancelled',
-  };
+  /// A rider is only handed an order the store has accepted: from
+  /// `confirmed` until the food is ready. Before that the kitchen may still
+  /// turn it down; after it, the order is already with a rider.
+  static const assignableStatuses = {'confirmed', 'preparing', 'ready'};
 
   bool get canAssignRider =>
-      !isAssigned && !unassignableStatuses.contains(status);
+      serverCanAssignRider ??
+      (!isAssigned && assignableStatuses.contains(status));
+
+  /// The rider can be swapped until they collect the food.
+  bool get canChangeRider =>
+      serverCanChangeRider ??
+      (isAssigned &&
+          rider!.deliveryStatus == 'assigned' &&
+          assignableStatuses.contains(status));
+
+  /// Out for delivery and delivered are the rider's steps — they follow from
+  /// the rider collecting and handing over the food — so the store never
+  /// sets them itself, even if an older server still offers them.
+  static const riderOnlyStatuses = {'out_for_delivery', 'delivered'};
+
+  List<String> get adminNextStatuses =>
+      nextStatuses.where((s) => !riderOnlyStatuses.contains(s)).toList();
 
   factory AdminOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -283,6 +315,8 @@ class AdminOrder {
       deliveredAt: DateTime.tryParse('${json['delivered_at']}'),
       cancelledAt: DateTime.tryParse('${json['cancelled_at']}'),
       cancelReason: json['cancel_reason'] as String?,
+      serverCanAssignRider: json['can_assign_rider'] as bool?,
+      serverCanChangeRider: json['can_change_rider'] as bool?,
     );
   }
 }

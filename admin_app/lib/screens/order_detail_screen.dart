@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/admin_order_model.dart';
+import '../models/order_flow.dart';
 import '../services/admin_order_service.dart';
 import '../services/api_client.dart';
 import '../theme.dart';
@@ -155,15 +156,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     return reason;
   }
 
+  /// Assigns a rider, or — while the current one has not collected the
+  /// food yet — hands the order to a different one.
   Future<void> _assignRider() async {
     final order = _order;
     if (order == null) return;
+    final previous = order.rider;
 
     final riderId = await showAssignRiderSheet(
       context,
       orderNumber: order.orderNumber,
     );
     if (riderId == null || !mounted) return;
+    if (previous != null && previous.riderId == riderId) {
+      _snack("${previous.name} already has this order.");
+      return;
+    }
 
     setState(() => _working = true);
 
@@ -175,7 +183,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _working = false;
         _dirty = true;
       });
-      _snack("Assigned to ${updated.rider?.name ?? 'rider'}.");
+      final name = updated.rider?.name ?? 'rider';
+      _snack(previous == null
+          ? "Assigned to $name."
+          : "Moved from ${previous.name} to $name.");
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _working = false);
@@ -516,7 +527,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   List<Widget> _buildActions(AdminOrder order) {
-    if (order.nextStatuses.isEmpty) {
+    final next = order.adminNextStatuses;
+    final hint = nextStepHint(order);
+    final hintCard = hint == null
+        ? null
+        : Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _NextStepNote(text: hint),
+          );
+
+    if (next.isEmpty) {
       return [
         Container(
           width: double.infinity,
@@ -536,11 +556,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     // Cancellation is available from nearly every state; it goes last and is
     // styled as the destructive option.
-    final forward =
-        order.nextStatuses.where((s) => s != 'cancelled').toList();
-    final canCancel = order.nextStatuses.contains('cancelled');
+    final forward = next.where((s) => s != 'cancelled').toList();
+    final canCancel = next.contains('cancelled');
 
     return [
+      ?hintCard,
       ...forward.map(
         (status) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -791,71 +811,146 @@ class _RiderCard extends StatelessWidget {
   const _RiderCard({required this.order, required this.onAssign});
 
   final AdminOrder order;
+
+  /// Opens the rider picker — for a first assignment and for a change.
   final VoidCallback? onAssign;
 
   @override
   Widget build(BuildContext context) {
     final rider = order.rider;
 
+    if (rider == null) {
+      return SectionCard(
+        title: "Rider",
+        icon: Icons.delivery_dining,
+        child: order.canAssignRider
+            ? OutlinedButton.icon(
+                onPressed: onAssign,
+                icon: const Icon(Icons.person_add_alt, size: 19),
+                label: const Text("Assign a rider"),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 46),
+                ),
+              )
+            : Text(
+                switch (order.status) {
+                  'pending_payment' => "This order has not been paid for yet. "
+                      "Accept it once the payment is confirmed, then assign a "
+                      "rider.",
+                  'pending' => "Accept the order first. A rider can be "
+                      "assigned once it is accepted.",
+                  _ => "An order that is "
+                      "${OrderStatusStyle.of(order.status).label.toLowerCase()}"
+                      " cannot be assigned.",
+                },
+                style: const TextStyle(fontSize: 12.5, color: kMuted),
+              ),
+      );
+    }
+
     return SectionCard(
       title: "Rider",
       icon: Icons.delivery_dining,
-      child: rider != null
-          ? Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: kAmber,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.delivery_dining, color: kInk),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: kAmber,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        rider.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14.5,
-                        ),
+                child: const Icon(Icons.delivery_dining, color: kInk),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rider.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.5,
                       ),
-                      Text(
-                        rider.phone.isEmpty ? "@${rider.username}" : rider.phone,
-                        style: const TextStyle(fontSize: 12, color: kMuted),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Text(
+                      rider.phone.isEmpty ? "@${rider.username}" : rider.phone,
+                      style: const TextStyle(fontSize: 12, color: kMuted),
+                    ),
+                  ],
                 ),
-                TagPill(
-                  label: rider.deliveryStatus.replaceAll('_', ' '),
-                  colour: const Color(0xFF00695C),
-                ),
-              ],
-            )
-          : order.canAssignRider
-              ? OutlinedButton.icon(
-                  onPressed: onAssign,
-                  icon: const Icon(Icons.person_add_alt, size: 19),
-                  label: const Text("Assign a rider"),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 46),
-                  ),
-                )
-              : Text(
-                  order.status == 'pending_payment'
-                      ? "This order has not been paid for yet. It can be "
-                          "assigned once the payment is confirmed."
-                      : "An order that is "
-                          "${OrderStatusStyle.of(order.status).label.toLowerCase()}"
-                          " cannot be assigned.",
-                  style: const TextStyle(fontSize: 12.5, color: kMuted),
-                ),
+              ),
+              TagPill(
+                label: deliveryStatusLabel(rider.deliveryStatus),
+                colour: rider.deliveryFailed
+                    ? const Color(0xFFC62828)
+                    : const Color(0xFF00695C),
+              ),
+            ],
+          ),
+          if (rider.deliveryFailed &&
+              (rider.failureReason?.trim().isNotEmpty ?? false)) ...[
+            const SizedBox(height: 10),
+            Text(
+              "Reason: ${rider.failureReason!.trim()}",
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFFC62828)),
+            ),
+          ],
+          if (order.canChangeRider) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onAssign,
+              icon: const Icon(Icons.swap_horiz, size: 19),
+              label: const Text("Change rider"),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Possible until the rider picks the order up.",
+              style: TextStyle(fontSize: 11.5, color: kMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "What happens next" above the action buttons.
+class _NextStepNote extends StatelessWidget {
+  const _NextStepNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kAmber.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 18, color: kInk),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12.5, height: 1.35),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

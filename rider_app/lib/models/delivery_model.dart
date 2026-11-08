@@ -129,6 +129,7 @@ class Delivery {
     this.assignedAt,
     this.pickedUpAt,
     this.deliveredAt,
+    this.waitingFor,
   });
 
   final int id;
@@ -149,6 +150,36 @@ class Delivery {
   final DateTime? assignedAt;
   final DateTime? pickedUpAt;
   final DateTime? deliveredAt;
+
+  /// The server's reason the rider cannot act yet, e.g. "The store is still
+  /// preparing this order." Null when nothing is holding them up.
+  final String? waitingFor;
+
+  /// The store cancelled the order while it was still on this rider's list.
+  /// Nothing may be done with it any more.
+  bool get orderCancelled => order.status == 'cancelled';
+
+  /// Why the rider may not collect yet, or null once they may.
+  ///
+  /// A rider is only handed an order the store has accepted, and may only
+  /// collect it once the kitchen marks it ready. The server is the
+  /// authority; the local wording covers a server that sends no reason.
+  String? get pickupBlockedReason {
+    if (status != 'assigned' || orderCancelled) return null;
+    if (order.isReadyForPickup) return null;
+    final fromServer = waitingFor?.trim() ?? '';
+    if (fromServer.isNotEmpty) return fromServer;
+    switch (order.status) {
+      case 'pending':
+        return "The store has not accepted this order yet.";
+      case 'confirmed':
+        return "The store accepted this order. The kitchen starts on it soon.";
+      case 'preparing':
+        return "The kitchen is preparing this order.";
+      default:
+        return "This order is not ready for pickup yet.";
+    }
+  }
 
   /// Still being worked. Matches `ACTIVE_DELIVERY_STATUSES` server-side, and
   /// is what decides whether the location pinger runs.
@@ -180,6 +211,7 @@ class Delivery {
       assignedAt: DateTime.tryParse('${json['assigned_at']}'),
       pickedUpAt: DateTime.tryParse('${json['picked_up_at']}'),
       deliveredAt: DateTime.tryParse('${json['delivered_at']}'),
+      waitingFor: json['waiting_for'] as String?,
     );
   }
 }

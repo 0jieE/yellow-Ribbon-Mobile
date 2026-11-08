@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin_app/models/admin_order_model.dart';
 import 'package:admin_app/models/dashboard_model.dart';
+import 'package:admin_app/models/order_flow.dart';
 import 'package:admin_app/models/rider_model.dart';
 
 Map<String, dynamic> orderJson({
@@ -110,11 +111,33 @@ void main() {
   });
 
   group('assign rider gating', () {
-    test('an unassigned pending order can be assigned', () {
+    test('a pending order cannot be assigned until the store accepts it', () {
       final order = AdminOrder.fromJson(orderJson(status: 'pending'));
 
       expect(order.isAssigned, isFalse);
-      expect(order.canAssignRider, isTrue);
+      expect(order.canAssignRider, isFalse);
+    });
+
+    test('an accepted order can be assigned from confirmed until ready', () {
+      for (final status in ['confirmed', 'preparing', 'ready']) {
+        expect(
+          AdminOrder.fromJson(orderJson(status: status)).canAssignRider,
+          isTrue,
+          reason: status,
+        );
+      }
+    });
+
+    test('an order already out for delivery cannot be assigned', () {
+      expect(
+        AdminOrder.fromJson(orderJson(status: 'out_for_delivery')).canAssignRider,
+        isFalse,
+      );
+    });
+
+    test('the server answer wins when it sends one', () {
+      final json = orderJson(status: 'confirmed')..['can_assign_rider'] = false;
+      expect(AdminOrder.fromJson(json).canAssignRider, isFalse);
     });
 
     test('an unpaid pending_payment order cannot — the server refuses it', () {
@@ -294,5 +317,84 @@ void main() {
     expect(dashboard.countFor('out_for_delivery'), 2);
     // An unknown status reads as zero rather than throwing.
     expect(dashboard.countFor('nonsense'), 0);
+  });
+
+  group('change rider', () {
+    test('allowed while the rider has not picked the order up', () {
+      final order = AdminOrder.fromJson(
+        orderJson(status: 'ready', rider: _riderJson),
+      );
+      expect(order.canChangeRider, isTrue);
+    });
+
+    test('refused once the rider has the food', () {
+      final picked = Map<String, dynamic>.from(_riderJson)
+        ..['delivery_status'] = 'picked_up';
+      final order = AdminOrder.fromJson(
+        orderJson(status: 'out_for_delivery', rider: picked),
+      );
+      expect(order.canChangeRider, isFalse);
+    });
+
+    test('nothing to change without a rider', () {
+      expect(AdminOrder.fromJson(orderJson(status: 'ready')).canChangeRider, isFalse);
+    });
+  });
+
+  group('rider-only steps', () {
+    test('out for delivery and delivered are never offered to the store', () {
+      final order = AdminOrder.fromJson(
+        orderJson(
+          status: 'ready',
+          nextStatuses: const ['cancelled', 'out_for_delivery'],
+        ),
+      );
+      expect(order.adminNextStatuses, ['cancelled']);
+
+      final out = AdminOrder.fromJson(
+        orderJson(
+          status: 'out_for_delivery',
+          nextStatuses: const ['cancelled', 'delivered'],
+        ),
+      );
+      expect(out.adminNextStatuses, ['cancelled']);
+    });
+
+    test('the store steps are kept', () {
+      final order = AdminOrder.fromJson(orderJson(status: 'pending'));
+      expect(order.adminNextStatuses, ['cancelled', 'confirmed']);
+    });
+  });
+
+  group('next step hint', () {
+    test('a ready order without a rider asks for one', () {
+      final hint = nextStepHint(AdminOrder.fromJson(orderJson(status: 'ready')));
+      expect(hint, contains('Assign one'));
+    });
+
+    test('a ready order with a rider waits for the pickup', () {
+      final hint = nextStepHint(
+        AdminOrder.fromJson(orderJson(status: 'ready', rider: _riderJson)),
+      );
+      expect(hint, contains('Waiting for Ana Cruz to pick it up'));
+    });
+
+    test('a failed delivery points the store at cancelling', () {
+      final failed = Map<String, dynamic>.from(_riderJson)
+        ..['delivery_status'] = 'failed'
+        ..['failure_reason'] = 'Customer not home';
+      final order = AdminOrder.fromJson(
+        orderJson(status: 'out_for_delivery', rider: failed),
+      );
+      expect(order.rider!.deliveryFailed, isTrue);
+      expect(order.rider!.failureReason, 'Customer not home');
+      expect(nextStepHint(order), contains('cancel the order'));
+    });
+
+    test('finished orders have no hint', () {
+      for (final status in ['delivered', 'cancelled']) {
+        expect(nextStepHint(AdminOrder.fromJson(orderJson(status: status))), isNull);
+      }
+    });
   });
 }

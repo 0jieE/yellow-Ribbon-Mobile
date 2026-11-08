@@ -198,8 +198,10 @@ class _AssignedOrdersScreenState extends State<AssignedOrdersScreen>
     if (_all.isEmpty) {
       return _Placeholder(
         icon: Icons.inbox_outlined,
-        message: "No deliveries assigned to you right now.",
+        message: "No deliveries assigned to you right now.\n"
+            "Pull down to refresh.",
         onRetry: _load,
+        showRetry: false,
       );
     }
 
@@ -210,6 +212,7 @@ class _AssignedOrdersScreenState extends State<AssignedOrdersScreen>
         icon: Icons.search_off,
         message: "Nothing matches \"${_search.text.trim()}\".",
         onRetry: _load,
+        showRetry: false,
       );
     }
 
@@ -265,11 +268,16 @@ class _Placeholder extends StatelessWidget {
     required this.icon,
     required this.message,
     required this.onRetry,
+    this.showRetry = true,
   });
 
   final IconData icon;
   final String message;
   final Future<void> Function() onRetry;
+
+  /// Only a failed load gets a button. An empty list is not an error — new
+  /// assignments arrive by push and pull-to-refresh is still there.
+  final bool showRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -285,13 +293,15 @@ class _Placeholder extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.grey),
           ),
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton(
-              onPressed: onRetry,
-              child: const Text("Retry"),
+          if (showRetry) ...[
+            const SizedBox(height: 16),
+            Center(
+              child: ElevatedButton(
+                onPressed: onRetry,
+                child: const Text("Retry"),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

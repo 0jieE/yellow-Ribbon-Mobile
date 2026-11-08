@@ -685,6 +685,39 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   List<Widget> _buildActions(Delivery delivery) {
+    // The store cancelled it while it was still on this rider's list. Nothing
+    // may be picked up, delivered or failed any more.
+    if (delivery.orderCancelled) {
+      return [
+        _ActionNote(
+          icon: Icons.cancel_outlined,
+          colour: const Color(0xFFC62828),
+          text: "The store cancelled ${delivery.order.orderNumber}. "
+              "There is nothing to pick up or deliver.",
+        ),
+      ];
+    }
+
+    // Assigned, but the kitchen is not done. The rider sees why, and the
+    // pickup button stays visible but disabled so the next step is obvious.
+    final blocked = delivery.pickupBlockedReason;
+    if (blocked != null) {
+      return [
+        _ActionNote(
+          icon: Icons.hourglass_top,
+          colour: const Color(0xFFB26A00),
+          text: "$blocked You can pick it up once the store marks it "
+              "ready — you will get a notification.",
+        ),
+        const SizedBox(height: 10),
+        ElevatedButton.icon(
+          onPressed: null,
+          icon: Icon(DeliveryStatusStyle.of('picked_up').icon),
+          label: const Text("Waiting for the store"),
+        ),
+      ];
+    }
+
     if (delivery.nextStatuses.isEmpty) {
       return [
         Center(
@@ -696,40 +729,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       ];
     }
 
-    // `failed` is always available alongside the happy path; it is shown last
-    // and styled as the destructive option.
+    // `failed` sits alongside the happy path once the food is collected; it
+    // is shown last and styled as the destructive option. Before pickup
+    // there is nothing to fail — a rider who cannot make it calls the store,
+    // which hands the order to someone else.
     final forward =
         delivery.nextStatuses.where((s) => s != 'failed').toList();
-    final canFail = delivery.nextStatuses.contains('failed');
+    final canFail = delivery.nextStatuses.contains('failed') &&
+        delivery.status != 'assigned';
 
     return [
-      // The kitchen has to finish before a rider may collect — the server
-      // refuses otherwise, so the reason is shown up front.
-      if (forward.contains('picked_up') && !delivery.order.isReadyForPickup)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "The store has not marked this order ready yet "
-                    "(it is ${delivery.order.status.replaceAll('_', ' ')}).",
-                    style: const TextStyle(fontSize: 12.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
       ...forward.map(
         (status) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -1200,6 +1209,44 @@ class _ErrorState extends StatelessWidget {
             ElevatedButton(onPressed: onRetry, child: const Text("Retry")),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A coloured note in place of, or above, the action buttons.
+class _ActionNote extends StatelessWidget {
+  const _ActionNote({
+    required this.icon,
+    required this.colour,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color colour;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: colour),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12.5, color: colour, height: 1.35),
+            ),
+          ),
+        ],
       ),
     );
   }
