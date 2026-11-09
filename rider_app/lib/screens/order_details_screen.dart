@@ -39,6 +39,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Delivery? _delivery;
   String? _error;
   bool _loading = true;
+
+  /// The server no longer shows this delivery to this rider (404) — the
+  /// store handed the order to someone else before pickup.
+  bool _gone = false;
   bool _working = false;
 
   GoogleMapController? _mapController;
@@ -91,6 +95,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _gone = e.statusCode == 404;
         _error = e.message;
       });
       _stopPolling();
@@ -109,8 +114,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       setState(() => _delivery = delivery);
       _syncRoute(delivery);
       _syncPolling(delivery);
-    } on ApiException {
-      // Keep what we have; the next tick tries again.
+    } on ApiException catch (e) {
+      // A 404 is not a blip: the delivery was moved to another rider, so
+      // stop showing it as theirs. Anything else keeps the last good state
+      // and the next tick tries again.
+      if (e.statusCode == 404 && mounted) {
+        setState(() => _gone = true);
+        _stopPolling();
+      }
     } finally {
       _refreshing = false;
     }
@@ -247,8 +258,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       if (!mounted) return;
       setState(() => _working = false);
       // Covers the "order is not ready for pickup yet" refusal and any
-      // illegal transition. The server is the authority, so re-read.
-      _snack(e.message);
+      // illegal transition. The server is the authority, so re-read. A 404
+      // means it was reassigned, which the re-read explains on screen.
+      if (e.statusCode != 404) _snack(e.message);
       await _load();
     }
   }
@@ -480,7 +492,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       appBar: AppBar(
         title: Text(delivery?.order.orderNumber ?? "Delivery"),
         actions: [
-          if (delivery != null)
+          if (delivery != null && !_gone)
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: _load,
@@ -490,6 +502,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _gone
+              ? _ReassignedState(orderNumber: delivery?.order.orderNumber)
           : _error != null
               ? _ErrorState(message: _error!, onRetry: _load)
               : _buildBody(delivery!),
@@ -694,6 +708,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           colour: const Color(0xFFC62828),
           text: "The store cancelled ${delivery.order.orderNumber}. "
               "There is nothing to pick up or deliver.",
+        ),
+      ];
+    }
+
+    if (delivery.status == 'failed') {
+      final reason = delivery.failureReason?.trim() ?? '';
+      return [
+        _ActionNote(
+          icon: Icons.report_problem_outlined,
+          colour: const Color(0xFFC62828),
+          text: reason.isEmpty
+              ? "This delivery failed."
+              : "This delivery failed. Reason: $reason",
         ),
       ];
     }
@@ -1207,6 +1234,41 @@ class _ErrorState extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: onRetry, child: const Text("Retry")),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when the store moved this order to another rider before pickup.
+class _ReassignedState extends StatelessWidget {
+  const _ReassignedState({this.orderNumber});
+
+  final String? orderNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    final which = orderNumber == null ? "This order" : orderNumber!;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.swap_horiz, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(
+              "$which is no longer assigned to you. The store gave it to "
+              "another rider.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Back to my orders"),
+            ),
           ],
         ),
       ),

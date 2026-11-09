@@ -255,5 +255,17 @@ void main() {
       expect(delivery.orderCancelled, isTrue);
       expect(delivery.pickupBlockedReason, isNull);
     });
+
+    test('a cancel closes the delivery with its reason', () {
+      final json = deliveryJson(
+        status: 'failed',
+        orderStatus: 'cancelled',
+        nextStatuses: const [],
+      )..['failure_reason'] = 'Order cancelled';
+      final delivery = Delivery.fromJson(json);
+      expect(delivery.isTerminal, isTrue);
+      expect(delivery.isActive, isFalse);
+      expect(delivery.failureReason, 'Order cancelled');
+    });
   });
 }

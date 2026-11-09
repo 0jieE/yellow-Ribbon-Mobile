@@ -130,6 +130,7 @@ class Delivery {
     this.pickedUpAt,
     this.deliveredAt,
     this.waitingFor,
+    this.failureReason,
   });
 
   final int id;
@@ -154,6 +155,10 @@ class Delivery {
   /// The server's reason the rider cannot act yet, e.g. "The store is still
   /// preparing this order." Null when nothing is holding them up.
   final String? waitingFor;
+
+  /// Why a failed delivery failed — what the rider typed, or "Order
+  /// cancelled" when the store or customer cancelled while it was assigned.
+  final String? failureReason;
 
   /// The store cancelled the order while it was still on this rider's list.
   /// Nothing may be done with it any more.
@@ -212,6 +217,7 @@ class Delivery {
       pickedUpAt: DateTime.tryParse('${json['picked_up_at']}'),
       deliveredAt: DateTime.tryParse('${json['delivered_at']}'),
       waitingFor: json['waiting_for'] as String?,
+      failureReason: json['failure_reason'] as String?,
     );
   }
 }
